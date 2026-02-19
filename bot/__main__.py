@@ -30,7 +30,7 @@ def add_contact(args: CommandArgs, context: CommandContext) -> None:
 
     try:
         match contacts_service.add_contact(name, phone=phone):
-            case "created":
+            case "added":
                 print("Contact added.")
             case "updated":
                 print("Phone number added.")
@@ -39,7 +39,7 @@ def add_contact(args: CommandArgs, context: CommandContext) -> None:
 
 
 @commands.register("change", args=["name", "old phone number", "new phone number"])
-def change_contact(args: CommandArgs, context: CommandContext) -> None:
+def change_phone(args: CommandArgs, context: CommandContext) -> None:
     name, old_phone, new_phone = args
     contacts_service = context["contacts_service"]
 
@@ -55,16 +55,16 @@ def show_phone(args: CommandArgs, context: CommandContext) -> None:
     name = args[0]
     contacts_service = context["contacts_service"]
 
-    record = contacts_service.get_contact(name)
-    if not record:
+    contact = contacts_service.get_contact(name)
+    if not contact:
         print("Contact doesn't exist.")
         return
 
-    if not record.phones:
+    if not contact.phones:
         print("This contact doesn't have a phone number.")
         return
 
-    print(record.phones[0])
+    print(contact.phones[0])
 
 
 @commands.register("all")
@@ -84,22 +84,24 @@ def show_all(context: CommandContext) -> None:
 @commands.register("add-birthday", args=["name", "birthday"])
 def add_birthday(args: CommandArgs, context: CommandContext) -> None:
     name, birthday = args
-    contacts = context["contacts"]
+    contacts_service = context["contacts_service"]
 
-    contact = contacts.find(name)
-    if contact:
-        contact.add_birthday(birthday)
-        print("Birthday added.")
-    else:
+    try:
+        match contacts_service.add_birthday(name, birthday=birthday):
+            case "added":
+                print("Birthday added.")
+            case "updated":
+                print("Birthday updated.")
+    except ContactNotFoundError:
         print("Contact doesn't exist.")
 
 
 @commands.register("show-birthday", args=["name"])
 def show_birthday(args: CommandArgs, context: CommandContext) -> None:
     name = args[0]
-    contacts = context["contacts"]
+    contacts_service = context["contacts_service"]
 
-    contact = contacts.find(name)
+    contact = contacts_service.get_contact(name)
     if contact:
         birthday = contact.get_birthday()
         print(birthday or "Contact doesn't have a birthday set.")
