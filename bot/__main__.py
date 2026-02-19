@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 
 from bot.commands import (
     CommandArgs,
@@ -131,10 +132,13 @@ def birthdays(context: CommandContext) -> None:
     )
 
 
+class StopSession(Exception):
+    pass
+
+
 @commands.register("exit", "close", "quit", "bye")
 def say_goodbye() -> None:
-    print("Good bye!")
-    sys.exit(0)
+    raise StopSession
 
 
 def parse_input(user_input: str) -> tuple[str, ...]:
@@ -144,18 +148,37 @@ def parse_input(user_input: str) -> tuple[str, ...]:
 
 
 def main() -> None:
-    book = AddressBook()
+    # Parse CLI arguments to extract address book path
+    args = sys.argv[1:]
+    if len(args) > 1:
+        print(f"Usage: python -m bot [path_to_address_book]")
+        print(f"Expected 0 or 1 arguments, got {len(args)}")
+        sys.exit(1)
+    elif len(args) == 1:
+        path = Path(args[0])
+    else:
+        path = None
 
+    # Load address book from a file or create a new one
+    if path:
+        try:
+            book = AddressBook.from_file(path)
+        except IsADirectoryError:
+            print(f"File is expected, not a directory: '{path.name}'")
+            sys.exit(1)
+    else:
+        book = AddressBook()
+
+    # Start bot session (commands loop)
     print("Welcome to the assistant bot!")
     while True:
         user_input = input("Enter a command: ").strip()
         if not user_input:
             continue
 
-        command, *args = parse_input(user_input)
-
+        command, *command_args = parse_input(user_input)
         try:
-            commands.run(command, *args, book=book)
+            commands.run(command, *command_args, book=book)
         except CommandNotFoundError:
             print("Invalid command.")
         except InvalidCommandArgumentsError as e:
@@ -171,8 +194,15 @@ def main() -> None:
                 print("This command doesn't take any arguments.")
         except ValueError as e:
             print(e)
+        except StopSession:
+            print("Good bye!")
+            break
         except Exception as e:
             print(f"Whoops, an unexpected error occurred: {e}")
+
+    # Save address book at the end
+    if path:
+        book.save(path)
 
 
 if __name__ == "__main__":

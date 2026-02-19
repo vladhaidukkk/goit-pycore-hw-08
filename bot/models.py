@@ -1,6 +1,8 @@
+import pickle
 from collections import UserDict
 from datetime import date, datetime, timedelta
-from typing import Any
+from pathlib import Path
+from typing import Any, Self
 
 
 class Field:
@@ -151,3 +153,15 @@ class AddressBook(UserDict):
             )
 
         return upcoming_birthdays
+
+    @classmethod
+    def from_file(cls, path: str | Path) -> Self:
+        try:
+            with open(path, "rb") as f:
+                return pickle.load(f)
+        except FileNotFoundError:
+            return cls()
+
+    def save(self, path: str | Path) -> None:
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
