@@ -32,7 +32,7 @@ def add_contact(args: CommandArgs, context: CommandContext) -> None:
         match contacts_service.add_contact(name, phone=phone):
             case "added":
                 print("Contact added.")
-            case "updated":
+            case "updated:phone":
                 print("Phone number added.")
     except ContactAlreadyExistsError:
         print("Contact already exists.")
