@@ -8,7 +8,12 @@ from bot.commands import (
     CommandsRegistry,
     InvalidCommandArgumentsError,
 )
-from bot.models import AddressBook, Record
+from bot.contacts import (
+    ContactAlreadyExistsError,
+    ContactNotFoundError,
+    ContactsBook,
+    ContactsService,
+)
 
 commands = CommandsRegistry()
 
@@ -21,41 +26,36 @@ def say_hello() -> None:
 @commands.register("add", args=["name"], optional_args=["phone number"])
 def add_contact(args: CommandArgs, context: CommandContext) -> None:
     name, phone = args
-    book = context["book"]
+    contacts_service = context["contacts_service"]
 
-    record = book.find(name)
-    if not record:
-        record = Record(name)
-        if phone:
-            record.add_phone(phone)
-        book.add_record(record)
-        print("Contact added.")
-    elif not record.phones and phone:
-        record.add_phone(phone)
-        print("Phone number added.")
-    else:
+    try:
+        match contacts_service.add_contact(name, phone=phone):
+            case "created":
+                print("Contact added.")
+            case "updated":
+                print("Phone number added.")
+    except ContactAlreadyExistsError:
         print("Contact already exists.")
 
 
 @commands.register("change", args=["name", "old phone number", "new phone number"])
 def change_contact(args: CommandArgs, context: CommandContext) -> None:
     name, old_phone, new_phone = args
-    book = context["book"]
+    contacts_service = context["contacts_service"]
 
-    record = book.find(name)
-    if record:
-        record.edit_phone(old_phone, new_phone)
+    try:
+        contacts_service.update_contact(name, phone=(old_phone, new_phone))
         print("Contact updated.")
-    else:
+    except ContactNotFoundError:
         print("Contact doesn't exist.")
 
 
 @commands.register("phone", args=["name"])
 def show_phone(args: CommandArgs, context: CommandContext) -> None:
     name = args[0]
-    book = context["book"]
+    contacts_service = context["contacts_service"]
 
-    record = book.find(name)
+    record = contacts_service.get_contact(name)
     if not record:
         print("Contact doesn't exist.")
         return
@@ -69,12 +69,12 @@ def show_phone(args: CommandArgs, context: CommandContext) -> None:
 
 @commands.register("all")
 def show_all(context: CommandContext) -> None:
-    book = context["book"]
-    if book:
+    contacts = context["contacts"]
+    if contacts:
         print(
             "\n".join(
-                f"{record.name}: {record.phones[0] if record.phones else '-'}"
-                for record in book.values()
+                f"{contact.name}: {contact.phones[0] if contact.phones else '-'}"
+                for contact in contacts.values()
             )
         )
     else:
@@ -84,11 +84,11 @@ def show_all(context: CommandContext) -> None:
 @commands.register("add-birthday", args=["name", "birthday"])
 def add_birthday(args: CommandArgs, context: CommandContext) -> None:
     name, birthday = args
-    book = context["book"]
+    contacts = context["contacts"]
 
-    record = book.find(name)
-    if record:
-        record.add_birthday(birthday)
+    contact = contacts.find(name)
+    if contact:
+        contact.add_birthday(birthday)
         print("Birthday added.")
     else:
         print("Contact doesn't exist.")
@@ -97,11 +97,11 @@ def add_birthday(args: CommandArgs, context: CommandContext) -> None:
 @commands.register("show-birthday", args=["name"])
 def show_birthday(args: CommandArgs, context: CommandContext) -> None:
     name = args[0]
-    book = context["book"]
+    contacts = context["contacts"]
 
-    record = book.find(name)
-    if record:
-        birthday = record.get_birthday()
+    contact = contacts.find(name)
+    if contact:
+        birthday = contact.get_birthday()
         print(birthday or "Contact doesn't have a birthday set.")
     else:
         print("Contact doesn't exist.")
@@ -109,17 +109,17 @@ def show_birthday(args: CommandArgs, context: CommandContext) -> None:
 
 @commands.register("birthdays")
 def birthdays(context: CommandContext) -> None:
-    book = context["book"]
+    contacts = context["contacts"]
 
-    if not book:
+    if not contacts:
         print("No contacts.")
         return
 
-    if book.birthdays_count == 0:
+    if contacts.birthdays_count == 0:
         print("No contacts with birthdays.")
         return
 
-    upcoming_birthdays = book.get_upcoming_birthdays()
+    upcoming_birthdays = contacts.get_upcoming_birthdays()
     if not upcoming_birthdays:
         print("No contacts with upcoming birthdays.")
         return
@@ -148,10 +148,10 @@ def parse_input(user_input: str) -> tuple[str, ...]:
 
 
 def main() -> None:
-    # Parse CLI arguments to extract address book path
+    # Parse CLI arguments to extract contacts book path
     args = sys.argv[1:]
     if len(args) > 1:
-        print(f"Usage: python -m bot [path_to_address_book]")
+        print(f"Usage: python -m bot [path_to_contacts_book]")
         print(f"Expected 0 or 1 arguments, got {len(args)}")
         sys.exit(1)
     elif len(args) == 1:
@@ -159,15 +159,17 @@ def main() -> None:
     else:
         path = None
 
-    # Load address book from a file or create a new one
+    # Load contacts book from a file or create a new one
     if path:
         try:
-            book = AddressBook.from_file(path)
+            contacts = ContactsBook.from_file(path)
         except IsADirectoryError:
             print(f"File is expected, not a directory: '{path.name}'")
             sys.exit(1)
     else:
-        book = AddressBook()
+        contacts = ContactsBook()
+
+    contacts_service = ContactsService(contacts)
 
     # Start bot session (commands loop)
     print("Welcome to the assistant bot!")
@@ -178,7 +180,12 @@ def main() -> None:
 
         command, *command_args = parse_input(user_input)
         try:
-            commands.run(command, *command_args, book=book)
+            commands.run(
+                command,
+                *command_args,
+                contacts=contacts,
+                contacts_service=contacts_service,
+            )
         except CommandNotFoundError:
             print("Invalid command.")
         except InvalidCommandArgumentsError as e:
@@ -200,9 +207,9 @@ def main() -> None:
         except Exception as e:
             print(f"Whoops, an unexpected error occurred: {e}")
 
-    # Save address book at the end
+    # Save contacts book at the end
     if path:
-        book.save(path)
+        contacts.save(path)
 
 
 if __name__ == "__main__":

@@ -44,7 +44,7 @@ class Birthday(Field):
             raise ValueError("Invalid birthday format. Use DD.MM.YYYY")
 
 
-class Record:
+class ContactRecord:
     def __init__(self, name: str) -> None:
         self.name = Name(name)
         self.phones: list[Phone] = []
@@ -97,11 +97,11 @@ class Record:
         return f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}"
 
 
-class AddressBook(UserDict):
-    def add_record(self, record: Record) -> None:
+class ContactsBook(UserDict):
+    def add_record(self, record: ContactRecord) -> None:
         self.data[record.name.value] = record
 
-    def find(self, name: str) -> Record | None:
+    def find(self, name: str) -> ContactRecord | None:
         return self.data.get(name)
 
     def delete(self, name: str) -> None:
