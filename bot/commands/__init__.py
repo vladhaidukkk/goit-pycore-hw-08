@@ -1,4 +1,4 @@
-from .commands import CommandArgs, CommandContext, CommandsRegistry
+from .dispatcher import CommandArgs, CommandContext, CommandsDispatcher
 from .errors import (
     CommandAlreadyExistsError,
     CommandError,
@@ -6,3 +6,4 @@ from .errors import (
     ForbiddenCommandArgumentError,
     InvalidCommandArgumentsError,
 )
+from .registry import CommandsRegistry

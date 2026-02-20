@@ -1,58 +1,28 @@
 import inspect
-from typing import Any, Callable, NamedTuple, get_type_hints
+from typing import Any, get_type_hints
 
-from .errors import (
-    CommandAlreadyExistsError,
-    CommandNotFoundError,
-    ForbiddenCommandArgumentError,
-    InvalidCommandArgumentsError,
-)
+from .errors import ForbiddenCommandArgumentError, InvalidCommandArgumentsError
+from .registry import CommandsRegistry
 
 CommandArgs = tuple[str, ...]
 CommandContext = dict[str, Any]
 
 
-class Command(NamedTuple):
-    name: str
-    func: Callable
-    required_args: list[str]
-    optional_args: list[str]
+class CommandsDispatcher:
+    def __init__(self, registry: CommandsRegistry) -> None:
+        self._registry = registry
 
+    def input_command(self, prompt: str) -> tuple[str | None, list[str]]:
+        user_input = input(prompt).strip()
+        if not user_input:
+            return None, []
 
-class CommandsRegistry:
-    def __init__(self) -> None:
-        self._commands_registry: dict[str, Command] = {}
+        command, *args = user_input.split()
+        command = command.lower()
+        return command, args
 
-    def register(
-        self,
-        *command_names: str,
-        args: list[str] | None = None,
-        optional_args: list[str] | None = None,
-    ) -> Callable:
-        def decorator(func: Callable) -> Callable:
-            for name in command_names:
-                if name in self._commands_registry:
-                    raise CommandAlreadyExistsError(
-                        f"Command '{name}' is already registered."
-                    )
-                self._commands_registry[name] = Command(
-                    name=name,
-                    func=func,
-                    required_args=args or [],
-                    optional_args=optional_args or [],
-                )
-            return func
-
-        return decorator
-
-    def get(self, command_name: str) -> Command:
-        command = self._commands_registry.get(command_name)
-        if not command:
-            raise CommandNotFoundError(f"Command '{command_name}' is not registered.")
-        return command
-
-    def run(self, command_name: str, *args: str, **kwargs: Any) -> None:
-        command = self.get(command_name)
+    def run_command(self, command_name: str, *args: str, **kwargs: Any) -> None:
+        command = self._registry.get(command_name)
         command_args: dict[str, Any] = {}
 
         sig = inspect.signature(command.func)

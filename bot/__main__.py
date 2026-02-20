@@ -5,6 +5,7 @@ from bot.commands import (
     CommandArgs,
     CommandContext,
     CommandNotFoundError,
+    CommandsDispatcher,
     CommandsRegistry,
     InvalidCommandArgumentsError,
 )
@@ -134,19 +135,17 @@ def birthdays(context: CommandContext) -> None:
     )
 
 
-class StopSession(Exception):
+class StopCommandsLoop(Exception):
     pass
 
 
 @commands.register("exit", "close", "quit", "bye")
 def say_goodbye() -> None:
-    raise StopSession
+    print("Good bye!")
+    raise StopCommandsLoop
 
 
-def parse_input(user_input: str) -> tuple[str, ...]:
-    cmd, *args = user_input.split()
-    cmd = cmd.lower()
-    return cmd, *args
+dispatcher = CommandsDispatcher(commands)
 
 
 def main() -> None:
@@ -173,16 +172,15 @@ def main() -> None:
 
     contacts_service = ContactsService(contacts)
 
-    # Start bot session (commands loop)
+    # Run commands in a loop
     print("Welcome to the assistant bot!")
     while True:
-        user_input = input("Enter a command: ").strip()
-        if not user_input:
+        command, command_args = dispatcher.input_command("Enter a command: ")
+        if not command:
             continue
 
-        command, *command_args = parse_input(user_input)
         try:
-            commands.run(
+            dispatcher.run_command(
                 command,
                 *command_args,
                 contacts=contacts,
@@ -203,8 +201,7 @@ def main() -> None:
                 print("This command doesn't take any arguments.")
         except ValueError as e:
             print(e)
-        except StopSession:
-            print("Good bye!")
+        except StopCommandsLoop:
             break
         except Exception as e:
             print(f"Whoops, an unexpected error occurred: {e}")
